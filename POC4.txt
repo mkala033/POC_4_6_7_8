@@ -1,0 +1,48 @@
+pipeline{
+  agent any
+  stages{
+    stage(checkout'){
+	  steps{
+	    git branch: 'main', credentialsId: 'mkala033', url: 'https://github.com/mkala033/POC.git'
+                echo "\033[32m Git checkout is successful! \033[0m"
+	  }
+	}
+	stage('terraform init'){
+	  steps{
+	    sh('terraform init')
+	  }
+	}
+	stage('terraform Action'){
+	  when{
+                expression { ${action} =='apply'}
+            }
+			
+		steps{
+		  echo "Service deployed = ${service}"
+		  script{
+                    withCredentials([string(credentialsId: 'secret_key_aws', variable: 'aws_secret_key'), string(credentialsId: 'access_key_aws', variable: 'aws_access_key')]) {
+					  if{ ${service} == ec2}{
+					    sh "terraform plan -var flag=true -var aws_access_key=${aws_access_key} -var aws_secret_key=${aws_secret_key}"
+					    sh "terraform apply -var flag=true -var aws_access_key=${aws_access_key} -var aws_secret_key=${aws_secret_key} -auto-approve"
+                        }						
+					  if{${service} == s3} {
+					  sh "terraform plan -var flag=false -var aws_access_key=${aws_access_key} -var aws_secret_key=${aws_secret_key}"
+					  sh "terraform apply -var flag=false -var aws_access_key=${aws_access_key} -var aws_secret_key=${aws_secret_key} -auto-approve" 
+					  }
+					}
+				}
+		}	
+	}
+	stage('Terraform Destroy'){
+	  when{
+                expression { ${action} =='destroy'}
+            }
+		steps{
+		  withCredentials([string(credentialsId: 'secret_key_aws', variable: 'aws_secret_key'), string(credentialsId: 'access_key_aws', variable: 'aws_access_key')]) {
+                    echo "Destroying infrastructure...."
+                    sh "terraform destroy -var flag=true -var aws_access_key=${aws_access_key} -var aws_secret_key=${aws_secret_key} -auto-approve"
+		}	
+	}
+  }
+}
+
